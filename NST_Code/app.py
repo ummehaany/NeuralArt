@@ -33,12 +33,35 @@ class UploadForm(FlaskForm):
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-encoder = VGGEncoder('vgg_normalised.pth').to(device)
-decoder = Decoder().to(device)
-decoder.load_state_dict(torch.load('experiment/final_exp/decoder_final.pth', map_location=device))
+# The VGG encoder (~77MB checkpoint) and AdaIN decoder (~14MB checkpoint) are
+# intentionally NOT loaded here at module import time. Gunicorn imports this
+# module (`app:app`) before it can bind to $PORT, so importing it must stay
+# cheap -- eagerly loading ~90MB+ of weights on top of PyTorch's own resident
+# memory here was pushing the process over Render's 512MiB limit before it
+# ever finished starting up. Models are loaded lazily, once, on first actual
+# use (see load_models()), and the same objects are reused for every
+# subsequent request.
+_encoder = None
+_decoder = None
 
-encoder.eval()
-decoder.eval()
+
+def load_models():
+    """Load (once) and cache the VGG encoder and AdaIN decoder.
+
+    Safe under a single sync Gunicorn worker (WEB_CONCURRENCY=1): a sync
+    worker processes one request at a time within its process, so this
+    simple "load if not loaded yet" check needs no additional locking.
+    """
+    global _encoder, _decoder
+    if _encoder is None or _decoder is None:
+        _encoder = VGGEncoder('vgg_normalised.pth').to(device)
+        _decoder = Decoder().to(device)
+        _decoder.load_state_dict(
+            torch.load('experiment/final_exp/decoder_final.pth', map_location=device)
+        )
+        _encoder.eval()
+        _decoder.eval()
+    return _encoder, _decoder
 
 def allowed_file(filename):
     return '.' in filename and \
@@ -113,12 +136,17 @@ def index():
                 style_image = Image.open(style_path).convert('RGB')
 
                 alpha = float(form.alpha.data)
+                encoder, decoder = load_models()
                 stylized_image = style_transfer(content_image, style_image, encoder, decoder, alpha, device)
 
                 result_filename = 'stylized_' + content_filename
                 result_path = os.path.join(app.config['UPLOAD_FOLDER'], result_filename)
                 save_image(stylized_image, result_path)
-                
+
+                # Release request-scoped image/tensor objects promptly rather
+                # than waiting for the request to finish returning.
+                del content_image, style_image, stylized_image
+
                 result_image = result_filename
             except Exception as e:
                 error = str(e)
