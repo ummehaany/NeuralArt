@@ -10,7 +10,7 @@ from PIL import Image
 from torchvision import transforms
 import io
 
-# Import your existing AdaIN code
+# AdaIN model components: VGG encoder/decoder architecture and the AdaIN transfer utilities
 from utils.models import VGGEncoder, Decoder
 from utils.utils import adaptive_instance_normalization, calc_mean_std
 

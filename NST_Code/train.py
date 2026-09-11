@@ -12,11 +12,11 @@ from torchvision.utils import save_image
 def parse_arguments():
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--content_dir', type=str, default='/home/ubuntu/Desktop/NST_Code/content_data',
+    parser.add_argument('--content_dir', type=str, default='content_data',
                         help='Location of content dataset')
-    parser.add_argument('--style_dir', type=str, default='/home/ubuntu/Desktop/NST_Code/style_data',
+    parser.add_argument('--style_dir', type=str, default='style_data',
                         help='Location of style dataset')
-    parser.add_argument('--vgg', type=str, default='/home/ubuntu/Desktop/NST_Code/vgg_normalised.pth',
+    parser.add_argument('--vgg', type=str, default='vgg_normalised.pth',
                         help='Location of pre-trained VGG')
     parser.add_argument('--experiment', type=str, default='experiment1',
                         help='Name of experiment')
