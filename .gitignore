@@ -7,3 +7,11 @@ __pycache__/
 **/__pycache__/
 *.pyc
 .venv/
+# Ignore local environment/secret files
+.env
+
+# Ignore personal editor configuration
+.vscode/
+
+# Ignore Jupyter notebook checkpoint clutter
+.ipynb_checkpoints/

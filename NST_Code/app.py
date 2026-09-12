@@ -16,7 +16,12 @@ from utils.utils import adaptive_instance_normalization, calc_mean_std
 
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'supersecretkey'
+# SECRET_KEY signs Flask-WTF's session/CSRF tokens. In any real deployment this
+# must come from the SECRET_KEY environment variable (set it in Render's
+# Environment Variables) -- it is intentionally not hardcoded here anymore. The
+# fallback value below is used only when no SECRET_KEY is set in the environment
+# (e.g. quick local development) and is not a production secret.
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-only-insecure-key-do-not-use-in-production')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
 Bootstrap(app)
@@ -150,7 +155,10 @@ def index():
                 result_image = result_filename
             except Exception as e:
                 error = str(e)
-    else:
+    elif request.method == 'POST':
+        # Only report "please upload an image" when an actual form submission
+        # was attempted (and failed validation) -- a plain GET (first page
+        # load) must never populate `error`.
         if not content_filename:
             error = 'Please upload content image'
         if not style_filename:

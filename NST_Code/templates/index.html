@@ -24,15 +24,17 @@
     .header-section h1 {
         font-family: 'Orbitron', sans-serif;
         font-weight: 700;
-        font-size: 3.5rem;
+        font-size: clamp(2rem, 9vw, 3.5rem);
         background: linear-gradient(to right, #818cf8, #c084fc, #f472b6);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         text-shadow: 0 0 30px rgba(192, 132, 252, 0.3);
         margin-bottom: 1rem;
+        overflow-wrap: break-word;
+        word-break: break-word;
     }
     .header-section .lead {
-        font-size: 1.25rem;
+        font-size: clamp(0.85rem, 4vw, 1.25rem);
         color: #94a3b8;
         max-width: 600px;
         margin: 0 auto;
@@ -487,31 +489,28 @@
 
 <nav class="navbar navbar-expand-lg fixed-top">
     <div class="container">
-        <a class="navbar-brand" href="#"><i class="fas fa-brain me-2"></i>NeuralArt</a>
+        <a class="navbar-brand" href="#home"><i class="fas fa-brain me-2"></i>NeuralArt</a>
         <button class="navbar-toggler navbar-dark" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
             <span class="navbar-toggler-icon"></span>
         </button>
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
-                <li class="nav-item"><a class="nav-link" href="#">Home</a></li>
-                <li class="nav-item"><a class="nav-link" href="#">Gallery</a></li>
-                <li class="nav-item"><a class="nav-link" href="#">Features</a></li>
-                <li class="nav-item"><a class="nav-link" href="#">Pricing</a></li>
-                <li class="nav-item"><a class="nav-link" href="#">Contact</a></li>
+                <li class="nav-item"><a class="nav-link" href="#home">Home</a></li>
+                <li class="nav-item"><a class="nav-link" href="#how-it-works">How It Works</a></li>
+                <li class="nav-item"><a class="nav-link" href="#examples">Examples</a></li>
             </ul>
-            <a href="#" class="btn btn-sm btn-outline-light ms-3 rounded-pill px-4">Sign In</a>
         </div>
     </div>
 </nav>
 
-<div class="header-section">
+<div class="header-section" id="home">
     <div class="container">
-        <h1 class="display-4 fw-bold">STYLEFORGE AI</h1>
-        <p class="lead" style="border-right: 2px solid rgba(255,255,255,0.75); white-space: nowrap; overflow: hidden; width: 0; animation: typing 3.5s steps(40, end) forwards, blink-caret .75s step-end infinite; margin: 0 auto; display: inline-block; text-align: left;">Redefine Reality with AI-Powered Artistry</p>
+        <h1 class="display-4 fw-bold">NeuralArt</h1>
+        <p class="lead" style="border-right: 2px solid rgba(255,255,255,0.75); white-space: nowrap; overflow: hidden; width: 0; animation: typing 3.5s steps(40, end) forwards, blink-caret .75s step-end infinite; margin: 0 auto; display: inline-block; text-align: left;">Neural Style Transfer with AdaIN</p>
     </div>
 </div>
 
-<div class="container mb-5 fade-in-up">
+<div class="container mb-5 fade-in-up" id="how-it-works">
     <form method="post" enctype="multipart/form-data" id="uploadForm">
         {{ form.hidden_tag() }}
         
@@ -591,7 +590,7 @@
     {% endif %}
 </div>
 
-<section class="container examples-section fade-in-up">
+<section class="container examples-section fade-in-up" id="examples">
     <div class="card">
         <div class="card-header text-center py-3">Examples</div>
         <div class="card-body">
@@ -713,38 +712,25 @@
 <footer class="footer-section">
     <div class="container">
         <div class="row g-4">
-            <div class="col-lg-4 col-md-6">
+            <div class="col-lg-6 col-md-12">
                 <h5><i class="fas fa-brain me-2"></i>NeuralArt</h5>
-                <p class="mb-4">"Every artist dips his brush in his own soul, and paints his own nature into his pictures."</p>
-                <p class="small text-muted">Empowering creators with state-of-the-art AI tools to reimagine reality through the lens of artistic expression.</p>
-            </div>
-            <div class="col-lg-2 col-md-6">
-                <h5>Quick Links</h5>
-                <a href="#" class="footer-link">Home</a>
-                <a href="#" class="footer-link">About Us</a>
-                <a href="#" class="footer-link">Showcase</a>
-                <a href="#" class="footer-link">API Docs</a>
+                <p class="small text-muted">Neural style transfer using Adaptive Instance Normalization (AdaIN). An AI/ML portfolio project built with Python, PyTorch, and Flask.</p>
             </div>
             <div class="col-lg-3 col-md-6">
-                <h5>Contact Us</h5>
-                <p class="mb-2"><i class="fas fa-map-marker-alt me-2"></i> 123 Innovation Dr, Tech City</p>
-                <p class="mb-2"><i class="fas fa-envelope me-2"></i> hello@neuralart.ai</p>
-                <p class="mb-2"><i class="fas fa-phone me-2"></i> +1 (555) 123-4567</p>
+                <h5>Navigate</h5>
+                <a href="#home" class="footer-link">Home</a>
+                <a href="#how-it-works" class="footer-link">How It Works</a>
+                <a href="#examples" class="footer-link">Examples</a>
             </div>
             <div class="col-lg-3 col-md-6">
-                <h5>Follow Us</h5>
-                <div class="d-flex mb-3">
-                    <a href="#" class="social-icon"><i class="fab fa-twitter"></i></a>
-                    <a href="#" class="social-icon"><i class="fab fa-facebook-f"></i></a>
-                    <a href="#" class="social-icon"><i class="fab fa-instagram"></i></a>
-                    <a href="#" class="social-icon"><i class="fab fa-github"></i></a>
-                </div>
-                <p class="small text-muted">Subscribe to our newsletter for the latest updates.</p>
+                <h5>Project Links</h5>
+                <a href="https://github.com/ummehaany/NeuralArt" class="footer-link" target="_blank" rel="noopener">GitHub Repository</a>
+                <a href="https://neuralart-r9ff.onrender.com" class="footer-link" target="_blank" rel="noopener">Live Demo</a>
             </div>
         </div>
         <hr class="my-4" style="border-color: rgba(255,255,255,0.1);">
         <div class="text-center text-muted small">
-            &copy; 2025 NeuralArt Inc. All rights reserved. | Privacy Policy | Terms of Service
+            &copy; 2026 NeuralArt. A student/portfolio AI project &mdash; not a commercial product.
         </div>
     </div>
 </footer>
