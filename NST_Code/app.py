@@ -132,10 +132,21 @@ def index():
         else:
             style_filename = form.style_path.data
 
-        if content_filename and style_filename:
+        # content/style FileFields intentionally have no InputRequired
+        # validator, so a previously-uploaded image can be reused via the
+        # content_path/style_path hidden fields without re-selecting a file.
+        # That means validate_on_submit() can be True even when neither a
+        # new file nor a carried-over hidden path is present -- so the
+        # "missing image" check has to happen explicitly here rather than
+        # relying on form validation to catch an empty submission.
+        if not content_filename:
+            error = 'Please upload content image'
+        elif not style_filename:
+            error = 'Please upload style image'
+        else:
             content_path = os.path.join(app.config['UPLOAD_FOLDER'], content_filename)
             style_path = os.path.join(app.config['UPLOAD_FOLDER'], style_filename)
-            
+
             try:
                 content_image = Image.open(content_path).convert('RGB')
                 style_image = Image.open(style_path).convert('RGB')
@@ -156,13 +167,10 @@ def index():
             except Exception as e:
                 error = str(e)
     elif request.method == 'POST':
-        # Only report "please upload an image" when an actual form submission
-        # was attempted (and failed validation) -- a plain GET (first page
-        # load) must never populate `error`.
-        if not content_filename:
-            error = 'Please upload content image'
-        if not style_filename:
-            error = 'Please upload style image'
+        # form.validate_on_submit() was False on an actual POST submission
+        # (e.g. a disallowed file extension) -- a plain GET (first page load)
+        # never reaches this branch, so `error` stays None on first load.
+        error = 'Please upload a valid content and style image (png, jpg, or jpeg).'
 
     return render_template('index.html', form=form, result_image=result_image, content_image=content_filename,
                            style_image=style_filename, error=error)
@@ -180,7 +188,12 @@ def send_example(filename):
 
 if __name__ == '__main__':
     from werkzeug.serving import run_simple
-    run_simple('localhost', 5000, app, use_reloader=True, use_debugger=True)
+    # Only used for local `python app.py` runs -- production (Render) serves
+    # via Gunicorn per the Procfile, which never executes this block. The
+    # interactive Werkzeug debugger is opt-in via FLASK_DEBUG=1 so it can
+    # never be on by accident.
+    debug = os.environ.get('FLASK_DEBUG') == '1'
+    run_simple('localhost', 5000, app, use_reloader=debug, use_debugger=debug)
 
 
 

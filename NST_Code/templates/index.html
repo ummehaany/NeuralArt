@@ -700,7 +700,7 @@
                     </h2>
                     <div id="faqFive" class="accordion-collapse collapse" aria-labelledby="faqHeadingFive" data-bs-parent="#faqAccordion">
                         <div class="accordion-body">
-                            The model is trained on large-scale image datasets.
+                            The decoder was trained on the COCO2017 image dataset (content images) together with a separate style-image dataset, for 200 epochs, using a content loss plus a multi-layer style loss -- see <code>NST_Code/experiment/final_exp/options.txt</code> for the exact training configuration. The VGG encoder itself is pretrained and frozen; it is not trained by this project.
                         </div>
                     </div>
                 </div>

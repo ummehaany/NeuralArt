@@ -15,3 +15,14 @@ __pycache__/
 
 # Ignore Jupyter notebook checkpoint clutter
 .ipynb_checkpoints/
+
+# Internal working/audit notes and git-cleanup scratch -- never publish these
+Claude outputs/
+_to_delete/
+MODEL_BACKUP_DO_NOT_COMMIT/
+NeuralArt-portfolio-export/
+
+# Runtime upload/output directory: seed files removed from tracking below;
+# the app recreates this directory automatically via os.makedirs in app.py
+NST_Code/static/uploads/*
+!NST_Code/static/uploads/.gitkeep

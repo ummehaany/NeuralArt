@@ -110,8 +110,9 @@ Content Image + Style Image
 - `NST_Code/vgg_normalised.pth` — pretrained VGG encoder weights, used at inference and
   training time.
 - `NST_Code/experiment/final_exp/` — a trained decoder checkpoint (`decoder_final.pth`,
-  loaded by `app.py` at startup) plus sample outputs and the config log
-  (`options.txt`) from the training run that produced it.
+  lazy-loaded by `app.py` on first request, not at startup -- see the memory-loading
+  note above) plus sample outputs and the config log (`options.txt`) from the
+  training run that produced it.
 - `NST_Code/content_data/`, `NST_Code/style_data/` — sample content/style images used for
   training and experimentation.
 - `Demo_IO_Images/` — example input/output pairs showing the style transfer in action.
@@ -119,6 +120,9 @@ Content Image + Style Image
   content and style layers.
 - `requirements.txt` — Python dependencies.
 - `Procfile` — process definition for deploying the Flask app with `gunicorn`.
+- `render.yaml` — documents the Render web service configuration (build/start commands,
+  Python version, env vars) so the deployment is reproducible from the repo.
+- `LICENSE` — MIT license.
 
 ## Installation & Local Setup
 

@@ -1,0 +1,21 @@
+# Documents the Render web service configuration used to deploy this app, so
+# it's reproducible from the repo instead of living only in the Render
+# dashboard. This file is informational; the live service's actual settings
+# are whatever is configured in the Render dashboard for this project.
+services:
+  - type: web
+    name: neuralart
+    runtime: python
+    plan: free
+    region: oregon
+    branch: main
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --chdir NST_Code --bind :$PORT --timeout 120 app:app
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.13.0
+      - key: SECRET_KEY
+        generateValue: true
+      - key: WEB_CONCURRENCY
+        value: "1"
+    autoDeploy: true
