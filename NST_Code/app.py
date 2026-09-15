@@ -1,8 +1,10 @@
+import gc
 import os
 import torch
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 from flask_wtf import FlaskForm
 from flask_bootstrap import Bootstrap
+from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.utils import secure_filename
 from wtforms import FileField, SubmitField, FloatField, HiddenField
 from wtforms.validators import InputRequired
@@ -24,9 +26,40 @@ app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-only-insecure-key-do-not-use-in-production')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg'}
+# Reject grossly oversized request bodies (e.g. a multi-hundred-MB raw photo
+# or a decompression-bomb-style file) before Flask even buffers them into
+# memory. safe_open_image() below still downsizes anything up to this limit,
+# so 10MB is purely a hard backstop against pathological uploads, not the
+# normal expected file size.
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB per request
 Bootstrap(app)
 
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+# --- Production-safe image size limits -----------------------------------
+# Two separate caps, for two separate reasons:
+#
+# MAX_UPLOAD_DIMENSION bounds how large a decoded upload is ever allowed to
+# get in memory, regardless of what the model needs. Without this, a photo
+# with a huge pixel count (a modern phone panorama, a scanned image, etc.)
+# would be fully decoded to its native resolution by PIL before any resizing
+# ever ran -- an 8000x6000 photo alone is ~140MB as a raw RGB buffer, and
+# decoding both the content and style image that way can approach Render's
+# 512MB ceiling before the model has even run once.
+#
+# INFERENCE_SIZE bounds what actually gets fed to the model. Render's free
+# tier previously OOM-crashed repeatedly at 512px (see Render's own event
+# log: "Ran out of memory (used over 512MB) while running your code").
+# 256px was profiled on 2026-09-14 as the resolution that reliably fits
+# within the 512MB limit alongside PyTorch's own baseline memory footprint,
+# and was confirmed again in production on 2026-09-15 after a git-history
+# cleanup accidentally reverted this file to the older 512px version and the
+# OOM crashes came back immediately. Keep this in sync with any future
+# profiling -- do not raise it without re-measuring peak RSS on a
+# Render-equivalent memory budget.
+MAX_UPLOAD_DIMENSION = 1536
+INFERENCE_SIZE = 256
+
 
 class UploadForm(FlaskForm):
     content = FileField('Content Image')
@@ -37,6 +70,11 @@ class UploadForm(FlaskForm):
     submit = SubmitField('Transfer Style')
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# Single sync Gunicorn worker (see Procfile) -- pin PyTorch to one thread too,
+# so a single request doesn't spin up a pool of CPU threads that briefly
+# inflates peak memory/CPU on Render's smallest instance for no throughput
+# benefit (there's never more than one request in flight at a time here).
+torch.set_num_threads(1)
 
 # The VGG encoder (~77MB checkpoint) and AdaIN decoder (~14MB checkpoint) are
 # intentionally NOT loaded here at module import time. Gunicorn imports this
@@ -66,24 +104,60 @@ def load_models():
         )
         _encoder.eval()
         _decoder.eval()
+        gc.collect()
     return _encoder, _decoder
 
 def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in app.config['ALLOWED_EXTENSIONS']
 
-def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
-    content_transform = transforms.Compose([
-        transforms.Resize(512),
-        transforms.ToTensor()
-    ])
 
-    style_transform = transforms.Compose([
-        transforms.Resize(512),
-        transforms.ToTensor()
-    ])
-    content_image = content_transform(content_image).unsqueeze(0).to(device)
-    style_image = style_transform(style_image).unsqueeze(0).to(device)
+def safe_open_image(path, max_dim=MAX_UPLOAD_DIMENSION):
+    """Open an image file bounded to at most max_dim on its longer side.
+
+    Uses JPEG "draft" mode where the format supports it, which asks libjpeg
+    to decode directly at a reduced resolution instead of decoding the full
+    native resolution and only *then* resizing -- for a large photo this
+    avoids ever materializing the full-size pixel buffer in memory at all.
+    draft() is a documented no-op for formats that don't support it (e.g.
+    PNG), so it's safe to call unconditionally.
+    """
+    image = Image.open(path)
+    try:
+        image.draft('RGB', (max_dim, max_dim))
+    except Exception:
+        pass
+    image = image.convert('RGB')
+    if max(image.size) > max_dim:
+        image.thumbnail((max_dim, max_dim), Image.LANCZOS)
+    return image
+
+
+def resize_max_side(image, max_size):
+    """Resize so the LONGER side is at most max_size, preserving aspect ratio.
+
+    torchvision's transforms.Resize(N) only bounds the *shorter* side, so an
+    extreme-aspect-ratio image (a panorama, a cropped screenshot, etc.) could
+    still produce a very large tensor on its long side even after that
+    resize. Bounding the longer side instead keeps worst-case tensor size
+    predictable no matter the input's aspect ratio.
+    """
+    width, height = image.size
+    longer_side = max(width, height)
+    if longer_side <= max_size:
+        return image
+    scale = max_size / float(longer_side)
+    new_size = (max(1, round(width * scale)), max(1, round(height * scale)))
+    return image.resize(new_size, Image.LANCZOS)
+
+
+def style_transfer(content_image, style_image, encoder, decoder, alpha, device):
+    content_image = resize_max_side(content_image, INFERENCE_SIZE)
+    style_image = resize_max_side(style_image, INFERENCE_SIZE)
+
+    to_tensor = transforms.ToTensor()
+    content_image = to_tensor(content_image).unsqueeze(0).to(device)
+    style_image = to_tensor(style_image).unsqueeze(0).to(device)
 
     with torch.no_grad():
         content_feats = encoder(content_image, is_test=True)
@@ -105,6 +179,16 @@ def save_image(image, path):
     image = transforms.ToPILImage()(image)
     image.save(path)
 
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def handle_large_upload(e):
+    form = UploadForm()
+    return render_template(
+        'index.html', form=form, result_image=None, content_image=None,
+        style_image=None,
+        error='That file is too large (max 10MB per image). Please upload a smaller image.',
+    ), 413
 
 
 @app.route('/', methods=['GET', 'POST'])
@@ -148,8 +232,8 @@ def index():
             style_path = os.path.join(app.config['UPLOAD_FOLDER'], style_filename)
 
             try:
-                content_image = Image.open(content_path).convert('RGB')
-                style_image = Image.open(style_path).convert('RGB')
+                content_image = safe_open_image(content_path)
+                style_image = safe_open_image(style_path)
 
                 alpha = float(form.alpha.data)
                 encoder, decoder = load_models()
@@ -160,12 +244,19 @@ def index():
                 save_image(stylized_image, result_path)
 
                 # Release request-scoped image/tensor objects promptly rather
-                # than waiting for the request to finish returning.
+                # than waiting for the request to finish returning, and force
+                # a collection pass -- CPython's refcounting frees most of
+                # this immediately, but gc.collect() also clears any
+                # reference cycles PyTorch's autograd/tensor machinery can
+                # leave behind, so peak memory doesn't creep up across
+                # requests on a long-lived single worker process.
                 del content_image, style_image, stylized_image
+                gc.collect()
 
                 result_image = result_filename
             except Exception as e:
                 error = str(e)
+                gc.collect()
     elif request.method == 'POST':
         # form.validate_on_submit() was False on an actual POST submission
         # (e.g. a disallowed file extension) -- a plain GET (first page load)
@@ -194,9 +285,3 @@ if __name__ == '__main__':
     # never be on by accident.
     debug = os.environ.get('FLASK_DEBUG') == '1'
     run_simple('localhost', 5000, app, use_reloader=debug, use_debugger=debug)
-
-
-
-
-
-
